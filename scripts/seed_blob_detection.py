@@ -14,8 +14,8 @@ image_gray = io.imread(str(sys.argv[1]))
 image = io.imread(str(sys.argv[1]))
 #image_gray = rgb2gray(image)
 
-blobs_log = blob_log(image_gray, max_sigma=30, num_sigma=10, threshold=.01)
-#blobs_log = blob_log(image_gray, max_sigma=1, num_sigma=10, threshold=.1)
+#blobs_log = blob_log(image_gray, max_sigma=30, num_sigma=10, threshold=.01)
+blobs_log = blob_log(image_gray, max_sigma=1, num_sigma=10, threshold=.1)
 
 print "number of seeds: "+str(len(blobs_log))
 
