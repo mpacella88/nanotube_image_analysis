@@ -8,8 +8,8 @@ from scipy.interpolate import UnivariateSpline
 import seaborn as sns 
 import scikits.statsmodels.tools.tools as sm
 
-flow_rates = ['0', '1', '2', '4', '6', '8', '10', '12', '16', '20']
-flow_rate_angle_files = ["0.dat", "1.dat", "2.dat", "4.dat", "6.dat", "8.dat", "10.dat", "12.dat", "16.dat", "20.dat"]
+flow_rates = ['0', '2', '4', '8', '12', '16', '20', '24', '32', ]
+flow_rate_angle_files = ["0.dat", "2.dat", "4.dat", "8.dat", "12.dat", "16.dat", "20.dat", "24.dat", '32.dat']
 
 angle_bins = [i for i in range(0,90,5)]
 colors = ['black', 'red', 'blue', 'green', 'yellow', 'magenta', 'orange', 'cyan', 'brown', 'purple', 'pink']
