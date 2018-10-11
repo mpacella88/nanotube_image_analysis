@@ -208,7 +208,7 @@ def count_tube_lengths(filename):
 	edges = closing(edges_open, selem)
 	fill_tubes = ndi.binary_fill_holes(edges)
 		#io.imsave(str(i)+"_fill_tubes.png", img_as_uint(fill_tubes), cmap=cm.gray)
-	io.imshow(img_as_uint(fill_tubes))
+	io.imsave("edge_test.pdf", img_as_uint(fill_tubes))
 	cy3_endpoint_mask, skeleton = make_endpoints_mask(fill_tubes)
 			#io.imsave(str(i)+"_skeleton.png", img_as_uint(img_as_bool(skeleton)), cmap=cm.gray)
 			#print fill_tubes

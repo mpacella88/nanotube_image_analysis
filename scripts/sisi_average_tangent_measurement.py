@@ -401,11 +401,11 @@ def process_tiff_stacks(filename):
 			for region in regionprops(label_image):
 				print "length is: ", region.area/tube_width
 				if region.area/tube_width >= length_cutoff and region.eccentricity >= eccentricity_cutoff:
-					try:
+					#try:
 						region_coords = region.coords.tolist()
 						region_endpoints, more_than_2 = endpoints(region_coords, cy3_endpoint_mask)
-					except TypeError:
-						continue	
+					#except TypeError:
+					#	continue	
 					if more_than_2 == True:
 						print "more than 2 endpoints, skipping this frame"
 						continue 

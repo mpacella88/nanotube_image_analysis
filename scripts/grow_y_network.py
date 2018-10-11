@@ -122,6 +122,13 @@ def grow_y_network(p_1arm, p_2arm, p_3arm, n_iterations = 10):
 
 
 
+
+#we will need a method that considers two possible networks that can join and computes their joining rate
+#this will either be a constant (for the constant model) or it will scale with the number of free ends exposed on the network
+#def joining_rate(structure_1, structure_2):
+
+
+
 p_1arms = np.arange(0.1, 0.9, 0.1)
 p_23_splits = np.arange(0.0,1.1,0.1)
 
@@ -149,6 +156,8 @@ plt.ylim([0.0, 50.0])
 plt.legend()
 plt.savefig('number_of_nodes_vs_p_3arm.pdf')
 
+
+
 '''plt.xlabel('probability of 3-arm structure')
 plt.ylabel('probability of network termination before 10 iterations')
 plt.xlim([0.0, 1.0])
@@ -160,9 +169,9 @@ plt.savefig('termination_probability_vs_p_3arm.pdf')'''
 #plt.subplot(121)
 nx.draw(G, pos = pos, with_labels = True)
 plt.savefig("network_"+str(p_1arm)+"_"+str(p_2arm)+"_"+str(p_3arm)+".png")
-'''
 
 
+initialize_system
 
 
 
