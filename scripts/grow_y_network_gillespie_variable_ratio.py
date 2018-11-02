@@ -173,7 +173,7 @@ def compute_rtot(system):
 	rtot = 0
 	#now we consider all pairwise joining reactions for these subgraphs, calculate the joining rate, and add it to the rtot
 	for i in range(len(graphs)):
-		for j in range (len(graphs)):
+		for j in range (i+1, len(graphs)):
 			if i == j:
 				continue
 			else:
@@ -244,7 +244,7 @@ def choose_joining_reaction(rtot, system):
 	joining_probabilities = []
 	network_pairs = []
 	for i in range(len(graphs)):
-		for j in range (len(graphs)):
+		for j in range (i+1, len(graphs)):
 			if i == j:
 				network_1 = graphs[i]
 				network_2 = graphs[j]
