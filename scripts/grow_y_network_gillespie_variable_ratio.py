@@ -137,13 +137,13 @@ def grow_y_network(p_1arm, p_2arm, p_3arm, n_iterations = 10):
 def initialize_system():
 	#using expt data we will initialize the system with the proper number of 1, 2, 3 armed structures
 	system = nx.Graph()
-	n_1arm_pos = 7
-	n_2arm_pos = 13
-	n_3arm_pos = 13
+	n_1arm_pos = 70
+	n_2arm_pos = 130
+	n_3arm_pos = 130
 
-	n_1arm_neg = 13
-	n_2arm_neg = 27
-	n_3arm_neg = 27
+	n_1arm_neg = 130
+	n_2arm_neg = 270
+	n_3arm_neg = 270
 	for i in range(n_1arm_pos):
 		system.add_node(system.number_of_nodes()+1, arms = 1, adapter = 'pos')
 	for i in range(n_2arm_pos):
@@ -339,6 +339,9 @@ def perform_gillespie_simulation(i):
 	time = [0]
 	for step in range(number_of_joining_steps):
 		rtot = compute_rtot(system)
+		if rtot == 0.0:
+			#no more reachions can occur
+			break
 		dt = compute_dt(rtot)
 		print dt 
 		previous_time = time[len(time)-1]
