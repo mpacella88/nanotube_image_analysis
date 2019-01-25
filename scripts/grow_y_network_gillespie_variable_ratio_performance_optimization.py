@@ -2,6 +2,8 @@ import networkx as nx
 import numpy as np
 import matplotlib.pyplot as plt 
 from networkx.drawing.nx_agraph import graphviz_layout
+from datetime import datetime
+startTime = datetime.now()
 
 
 def hierarchy_pos(G, root, width=10., vert_gap = 0.2, vert_loc = 0, xcenter = 0.5, 
@@ -137,13 +139,13 @@ def grow_y_network(p_1arm, p_2arm, p_3arm, n_iterations = 10):
 def initialize_system():
 	#using expt data we will initialize the system with the proper number of 1, 2, 3 armed structures
 	system = nx.Graph()
-	n_1arm_pos = 10
-	n_2arm_pos = 20
-	n_3arm_pos = 20
+	n_1arm_pos = 0 #7
+	n_2arm_pos = 0 #13
+	n_3arm_pos = 20 #13
 
-	n_1arm_neg = 10
-	n_2arm_neg = 20
-	n_3arm_neg = 20
+	n_1arm_neg = 0 #13
+	n_2arm_neg = 0 #27
+	n_3arm_neg = 20 #27
 	for i in range(n_1arm_pos):
 		system.add_node(system.number_of_nodes()+1, arms = 1, adapter = 'pos')
 	for i in range(n_2arm_pos):
@@ -162,7 +164,7 @@ def initialize_system():
 
 	return system
 
-def compute_rtot(system):
+def compute_rtot_first(system):
 	#given a system, compute the total reaction rate for the gillespie algorithm
 	#this means consider all possible joining reactions, calculate the rate for each, and sum this 
 
@@ -173,7 +175,7 @@ def compute_rtot(system):
 	rtot = 0
 	#now we consider all pairwise joining reactions for these subgraphs, calculate the joining rate, and add it to the rtot
 	for i in range(len(graphs)):
-		for j in range (len(graphs)):
+		for j in range (i+1, len(graphs)):
 			if i == j:
 				continue
 			else:
@@ -181,6 +183,49 @@ def compute_rtot(system):
 				network_2 = graphs[j]
 				kjoin = joining_rate(network_1, network_2)
 				rtot += kjoin
+	print rtot 
+	return rtot 
+
+
+def update_rtot(old_rtot, network_1, network_2, new_network, system_old):
+	#given a joining reaction, update rtot by subtracting all terms involving either of the joining partners 
+	#and add terms involving joining to the new network
+
+	
+	#we need a list of all subgraphs not including network_1, network_2, or new_network
+	graphs = list(nx.connected_component_subgraphs(system_old))
+	print len(graphs)
+
+	rtot = old_rtot
+	
+	for i in range(len(graphs)):
+		#subtract all joining terms for network_1
+		network = graphs[i]
+		kjoin1 = joining_rate(network_1, network)
+		rtot -= kjoin1
+		print "subtracting: ", kjoin1
+		
+		#subtract all joining terms for network_2
+		kjoin2 = joining_rate(network_2, network)
+		rtot -= kjoin2
+		print "subtracting: ", kjoin2
+
+		#add joining terms for new_network
+		kjoin_new = joining_rate(new_network, network)
+		rtot+=kjoin_new 
+		print "adding: ", kjoin_new 
+		
+	network_1_correction = joining_rate(network_1, network_1) #this is to avoid double counting the interaction of the two networks with themselves 
+	network_2_correction = joining_rate(network_2, network_2) #this is to avoid double counting the interaction of the two networks with themselves
+	rtot += network_1_correction
+	rtot += network_2_correction
+	#print "adding network 1 2 correction: ", network_1_2_correction
+	new_network_correction_1 = joining_rate(new_network, network_1) #this is to avoid counting the interaction of the new network with the two old networks 
+	new_network_correction_2 = joining_rate(new_network, network_2)
+	rtot -= new_network_correction_1
+	rtot -= new_network_correction_2
+
+
 	print rtot 
 	return rtot 
 
@@ -196,29 +241,44 @@ def joining_rate(network_1, network_2):
 	#note that even for the constant model this should return zero if the two networks cannot be joined
 	#that is if either one does not have any nodes with arms>connections
 	#
+
+	#rather than compute the joining rate for all pairs every time we could try updating rtot and all the reaction probabilities
+	#when a joining event occurs rtot is reduced because there is one less possible reaction
+	#the joining events corresponding to joining with either of the partners are eliminated
+	#and a new set of joining events for joining to the new network are added  
 	connectivity_dict1 = nx.get_node_attributes(network_1, 'arms')
 	adapter_dict1 = nx.get_node_attributes(network_1, 'adapter')
 	connectivity_dict2 = nx.get_node_attributes(network_2, 'arms')
 	adapter_dict2 = nx.get_node_attributes(network_2, 'adapter')
 
-	#count valid positive attachment points
+	#count valid attachment points for network 1
 	valid_positive_attachment_points_1 = 0
+	valid_negative_attachment_points_1 = 0
 	#has_valid_attachment_point_1 = False
 	for node, narms in connectivity_dict1.iteritems():
-		if network_1.degree(node) < narms:
-			has_valid_attachment_point_1 = True
-			break
+		if network_1.degree(node) < narms and network_1.node[node]['adapter'] == 'pos':
+			valid_positive_attachment_points_1 += narms - network_1.degree(node)
+		if network_1.degree(node) < narms and network_1.node[node]['adapter'] == 'neg':
+			valid_negative_attachment_points_1 += narms - network_1.degree(node)
 
-	has_valid_attachment_point_2 = False
+	#count valid attachment points for network 2
+	valid_positive_attachment_points_2 = 0
+	valid_negative_attachment_points_2 = 0
+	#has_valid_attachment_point_1 = False
 	for node, narms in connectivity_dict2.iteritems():
-		if network_2.degree(node) < narms:
-			has_valid_attachment_point_2 = True
-			break
-	if has_valid_attachment_point_1 and has_valid_attachment_point_2:
-		#print "both networks have valid attachment points, adding to total rate"
-		return .025
-	else:
-		return 0
+		if network_2.degree(node) < narms and network_2.node[node]['adapter'] == 'pos':
+			valid_positive_attachment_points_2 += narms - network_2.degree(node)
+		if network_2.degree(node) < narms and network_2.node[node]['adapter'] == 'neg':
+			valid_negative_attachment_points_2 += narms - network_2.degree(node)
+			
+	#print "valid pos 1: ", valid_positive_attachment_points_1
+	#print "valid neg 1: ", valid_negative_attachment_points_1
+	#print "valid pos 2: ", valid_positive_attachment_points_2
+	#print "valid neg 2: ", valid_negative_attachment_points_2
+	number_of_possible_connections = float(valid_positive_attachment_points_1*valid_negative_attachment_points_2 + valid_negative_attachment_points_1*valid_positive_attachment_points_2)
+	#print "number of possible connections: ", number_of_possible_connections
+	kjoin = 1
+	return kjoin*number_of_possible_connections
 
 def compute_dt(rtot):
 	#compute dt from the total reaction rate according to the exponential distribution
@@ -236,7 +296,7 @@ def choose_joining_reaction(rtot, system):
 	joining_probabilities = []
 	network_pairs = []
 	for i in range(len(graphs)):
-		for j in range (len(graphs)):
+		for j in range (i+1, len(graphs)):
 			if i == j:
 				network_1 = graphs[i]
 				network_2 = graphs[j]
@@ -249,7 +309,7 @@ def choose_joining_reaction(rtot, system):
 			#print joining_probability
 			joining_probabilities.append(joining_probability)
 			network_pairs.append([network_1, network_2])
-			network_pairs_index = range(len(network_pairs))
+	network_pairs_index = range(len(network_pairs))
 
 	chosen_pair_index = np.random.choice(network_pairs_index, p = joining_probabilities)
 	print "chosen pair index: ", chosen_pair_index
@@ -268,13 +328,16 @@ def perform_joining(network_1, network_2, system):
 		network_2_node = np.random.choice(network_2.nodes())
 		network_1_node_narms = connectivity_dict1[network_1_node]
 		network_2_node_narms = connectivity_dict2[network_2_node]
-		if network_1.degree(network_1_node) < network_1_node_narms and network_2.degree(network_2_node) < network_2_node_narms:
+		if network_1.degree(network_1_node) < network_1_node_narms and network_2.degree(network_2_node) < network_2_node_narms and network_1.node[network_1_node]['adapter'] != network_2.node[network_2_node]['adapter'] :
 			print "adding valid connection"
 			valid_connection = True
 
 	system.add_edge(network_1_node, network_2_node)
 
-	return system
+	#creating a new network to be returned so that we can update the rtot more efficiently
+	new_network = nx.union(network_1, network_2)
+	new_network.add_edge(network_1_node, network_2_node)
+	return system, new_network
 
 
 
@@ -323,32 +386,37 @@ plt.savefig("network_"+str(p_1arm)+"_"+str(p_2arm)+"_"+str(p_3arm)+".png")
 def perform_gillespie_simulation(i):
 	#initialize the system according the expt starting conditions
 	system = initialize_system()
-	number_of_joining_steps = 45
+	number_of_joining_steps = system.number_of_nodes()-10 #we will stop just short of everything in the system being joined to itself
 	average_nodes_per_network = [1]
-	number_of_connected_graphs = [50]
+	number_of_connected_graphs = [system.number_of_nodes()]
 	average_seeds_per_network = [1]
 	average_network_size_of_a_seed_list = [1]
 	time = [0]
+	rtot = compute_rtot_first(system)
+	print "rtot before loop starts: ", rtot 
+	#joining_reactions_list, probabilities_list = generate_joining_reactions_list(system)
 	for step in range(number_of_joining_steps):
-		rtot = compute_rtot(system)
+		print "updated rtot: ", rtot
+		brute_force_rtot = compute_rtot_first(system)
+		print "brute force rtot: ", brute_force_rtot
+		if rtot == 0.0:
+			#no more reachions can occur
+			break
 		dt = compute_dt(rtot)
 		print dt 
 		previous_time = time[len(time)-1]
 		time.append(previous_time + dt)
-	
 		#now we need to determine which joining reaction will occur
 		#the probability for a given reaction is that reaction's rate over rtot
 	
 		joined_network_1, joined_network_2 = choose_joining_reaction(rtot, system)
-	
-	
-		connectivity_dict1 = nx.get_node_attributes(joined_network_1, 'arms')
-		connectivity_dict2 = nx.get_node_attributes(joined_network_2, 'arms')
-		print connectivity_dict1, connectivity_dict2
-	
+		system_old = system.copy() #saving the old state of the system for updating rtot 
+
 		#now we actually perform the joining reaction by creating an edge between the two networks  
-		system = perform_joining(joined_network_1, joined_network_2, system)
-	
+		system, new_network = perform_joining(joined_network_1, joined_network_2, system)
+
+		rtot_new = update_rtot(rtot, joined_network_1, joined_network_2, new_network, system_old)
+		rtot = rtot_new #updating rtot for the next iteration
 		graphs = list(nx.connected_component_subgraphs(system))
 		print "new number of connected graphs", len(graphs)
 		number_of_connected_graphs.append(len(graphs))
@@ -383,15 +451,17 @@ expt_errors = [.045, .204, .280, 1.12, 1.14]
 #expt_average_network_size_of_seed = [1.51, 2.42, 3.61, 4.34]
 
 plt.errorbar(expt_times, expt_seeds_per_network, expt_errors, label = 'experiment', linewidth = 5, color = 'black' )
-plt.xlim([0.0, 10])
-plt.ylim([0.0, 30])
+#plt.xlim([0.0, 10])
+#plt.ylim([0.0, 30])
 plt.legend(loc = 4, fontsize = 8)
 plt.xlabel('time (hours)')
 plt.ylabel('average network size that a seed is in')
 plt.savefig("gillespie_results.pdf")
+print datetime.now() - startTime 
 
+#5*5*9 + 10*6
 
-
+#6*6*9
 
 
 

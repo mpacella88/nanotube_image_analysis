@@ -42,7 +42,7 @@ def count_seeds(filename):
 	image = io.imread(filename)
 	#image_gray = rgb2gray(image)
 
-	blobs_log = blob_log(image_gray, max_sigma=30, num_sigma=10, threshold=.01)
+	blobs_log = blob_log(image_gray, max_sigma=30, num_sigma=10, threshold=.05)
 	#blobs_log = blob_log(image_gray, max_sigma=1, num_sigma=10, threshold=.1)
 
 	print "number of seeds: "+str(len(blobs_log))
@@ -243,7 +243,7 @@ def count_seeds_per_network(filename, filename_seeds, plot_filename):
 
 
 			#perfoming edge detection and morphological filling
-	edges_open = canny(image, .5, 15, 100) #originally 2,1,25 last param can go up to 500 for improved performance, must lower for poorer images
+	edges_open = canny(image, .5, 5, 50) #originally 2,1,25 last param can go up to 500 for improved performance, must lower for poorer images
 			#edges_open = canny(image, 2) #originally 2,1,25
 	selem = disk(3)#originally 5
 	edges = closing(edges_open, selem)
@@ -273,7 +273,7 @@ def count_seeds_per_network(filename, filename_seeds, plot_filename):
 	image_seeds = io.imread(filename_seeds)
 	
 	print "now detecting seeds"
-	blobs_log = blob_log(image_seeds, max_sigma=30, num_sigma=10, threshold=.05)
+	blobs_log = blob_log(image_seeds, min_sigma=.75, max_sigma=3, num_sigma=10, threshold=.075) #.05 for original big network image
 	#blobs_log = blob_log(image_gray, max_sigma=1, num_sigma=10, threshold=.1)
 
 	print "number of seeds: "+str(len(blobs_log))
@@ -326,13 +326,24 @@ def count_seeds_per_network(filename, filename_seeds, plot_filename):
 		if seed_count > 0:
 			for i in range(seed_count):
 				number_of_seeds.append(seed_count)
-	print image.dtype
+	'''print image.dtype
 	image = (image/256).astype('uint8')
 	print image.dtype 
 	image_seeds = (image_seeds/256).astype('uint8')
 	
 	io.imsave(filename+"_converted.tiff", image)
-	io.imsave(filename_seeds+"_converted.tiff", image_seeds)
+	io.imsave(filename_seeds+"_converted.tiff", image_seeds)'''
+
+	plt.clf()
+	fig, ax = plt.subplots()
+	ax.imshow(fill_tubes, interpolation='nearest', cmap = 'Greens')
+	for blob in blobs_list:
+		print blob
+	 	y, x, r = blob
+		c = plt.Circle((x, y), r, color='blue', linewidth=1, fill=True)
+		ax.add_patch(c)
+		#ax[idx].set_axis_off()
+	plt.savefig(plot_filename+"individual.png")
 	print number_of_seeds
 	return number_of_seeds
 
@@ -390,7 +401,7 @@ def process_tiff_stacks(filename):
 
 
 			#perfoming edge detection and morphological filling
-			edges_open = canny(image, .05, .5, 5) #originally 2,1,25 last param can go up to 500 for improved performance, must lower for poorer images
+			edges_open = canny(image, .5, 15, 100) #originally 2,1,25 last param can go up to 500 for improved performance, must lower for poorer images
 			#edges_open = canny(image, 2) #originally 2,1,25
 			selem = disk(3)#originally 5
 			edges = closing(edges_open, selem)
@@ -462,7 +473,7 @@ end_to_end_distance_cutoff = 10.0
 
 #count_seeds_per_network("Lime 3.tif", "Blue 3.tif")
 
-time_dirs = ['1']
+time_dirs = ['big_network_test']
 
 network_sizes = []
 for time_dir in time_dirs:

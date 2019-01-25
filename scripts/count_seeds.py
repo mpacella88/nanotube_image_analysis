@@ -9,15 +9,16 @@ import matplotlib.pyplot as plt
 from skimage.data import camera
 from skimage.filters import roberts, sobel, scharr, prewitt
 
-def count_seeds(filename):
+def count_seeds(filename, thresh = .01):
 	"""count the number of seeds in a grayscale image using the laplacian
-	of gaussians method"""
+	of gaussians method""" 
+	#test
 
 	image_gray = io.imread(filename)
 	image = io.imread(filename)
 	#image_gray = rgb2gray(image)
 
-	blobs_log = blob_log(image_gray, max_sigma=30, num_sigma=10, threshold=.01)
+	blobs_log = blob_log(image_gray, max_sigma=30, num_sigma=10, threshold=thresh)
 	#blobs_log = blob_log(image_gray, max_sigma=1, num_sigma=10, threshold=.1)
 
 	print "number of seeds: "+str(len(blobs_log))
@@ -44,8 +45,8 @@ def count_seeds(filename):
 	        ax.add_patch(c)
 	    #ax[idx].set_axis_off()
 
-	#plt.tight_layout()
-	#plt.show()
+	plt.tight_layout()
+	plt.show()
 
 	print blobs_log 
 

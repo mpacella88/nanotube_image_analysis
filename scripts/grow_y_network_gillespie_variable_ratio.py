@@ -2,6 +2,8 @@ import networkx as nx
 import numpy as np
 import matplotlib.pyplot as plt 
 from networkx.drawing.nx_agraph import graphviz_layout
+from datetime import datetime
+startTime = datetime.now()
 
 
 def hierarchy_pos(G, root, width=10., vert_gap = 0.2, vert_loc = 0, xcenter = 0.5, 
@@ -137,13 +139,13 @@ def grow_y_network(p_1arm, p_2arm, p_3arm, n_iterations = 10):
 def initialize_system():
 	#using expt data we will initialize the system with the proper number of 1, 2, 3 armed structures
 	system = nx.Graph()
-	n_1arm_pos = 70
-	n_2arm_pos = 130
-	n_3arm_pos = 130
+	n_1arm_pos = 7
+	n_2arm_pos = 13
+	n_3arm_pos = 13
 
-	n_1arm_neg = 130
-	n_2arm_neg = 270
-	n_3arm_neg = 270
+	n_1arm_neg = 13
+	n_2arm_neg = 27
+	n_3arm_neg = 27
 	for i in range(n_1arm_pos):
 		system.add_node(system.number_of_nodes()+1, arms = 1, adapter = 'pos')
 	for i in range(n_2arm_pos):
@@ -339,6 +341,7 @@ def perform_gillespie_simulation(i):
 	time = [0]
 	for step in range(number_of_joining_steps):
 		rtot = compute_rtot(system)
+		print "rtot: ", rtot 
 		if rtot == 0.0:
 			#no more reachions can occur
 			break
@@ -394,12 +397,13 @@ expt_errors = [.045, .204, .280, 1.12, 1.14]
 #expt_average_network_size_of_seed = [1.51, 2.42, 3.61, 4.34]
 
 plt.errorbar(expt_times, expt_seeds_per_network, expt_errors, label = 'experiment', linewidth = 5, color = 'black' )
-plt.xlim([0.0, 10])
-plt.ylim([0.0, 30])
+#plt.xlim([0.0, 10])
+#plt.ylim([0.0, 30])
 plt.legend(loc = 4, fontsize = 8)
 plt.xlabel('time (hours)')
 plt.ylabel('average network size that a seed is in')
 plt.savefig("gillespie_results.pdf")
+print datetime.now() - startTime 
 
 
 

@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 import math
 from matplotlib import cm
 from matplotlib import path
-from skimage import img_as_uint, img_as_bool, img_as_float
+from skimage import img_as_uint, img_as_bool, img_as_float, img_as_ubyte
 from scipy import ndimage
 from scipy.spatial import distance
 from scipy import ndimage as ndi
@@ -23,14 +23,56 @@ from numpy import unravel_index
 import Tkinter, tkFileDialog
 from skimage.external import tifffile
 
-#modifying the joining detection script to measure the angle of Sisi's nanotubes relative to the x-axis of her images 
+from math import sqrt
+from skimage import data
+from skimage.feature import blob_dog, blob_log, blob_doh
+from skimage.color import rgb2gray
+from skimage import io 
+import sys
+from skimage.data import camera
+from skimage.filters import roberts, sobel, scharr, prewitt
+from skimage.exposure import equalize_hist 
+#from math import mean
 
-#constants
-#constants
-tube_width = 5.0
-length_cutoff = 3.0 
-eccentricity_cutoff = 0.5
-end_to_end_distance_cutoff = 10.0
+def count_seeds(filename):
+	"""count the number of seeds in a grayscale image using the laplacian
+	of gaussians method"""
+
+	image_gray = io.imread(filename)
+	image = io.imread(filename)
+	#image_gray = rgb2gray(image)
+
+	blobs_log = blob_log(image_gray, max_sigma=30, num_sigma=10, threshold=.01)
+	#blobs_log = blob_log(image_gray, max_sigma=1, num_sigma=10, threshold=.1)
+
+	print "number of seeds: "+str(len(blobs_log))
+
+	# Compute radii in the 3rd column.
+	blobs_log[:, 2] = blobs_log[:, 2] * sqrt(2)
+
+
+	blobs_list = [blobs_log]
+	colors = ['yellow']
+	titles = ['Laplacian of Gaussian']
+	sequence = zip(blobs_list, colors, titles)
+
+	fig, ax = plt.subplots(figsize=(9, 3))
+	ax.set_aspect('equal')
+	#ax = axes.ravel()
+
+	for idx, (blobs, color, title) in enumerate(sequence):
+	    #ax[idx].set_title(title)
+	    ax.imshow(image, interpolation='nearest')
+	    for blob in blobs:
+	        y, x, r = blob
+	        c = plt.Circle((x, y), r, color=color, linewidth=2, fill=False)
+	        ax.add_patch(c)
+	    #ax[idx].set_axis_off()
+
+	#plt.tight_layout()
+	plt.show()
+
+
 
 def dotproduct(v1, v2):
   return sum((a*b) for a, b in zip(v1, v2))
@@ -173,9 +215,8 @@ def calc_mean_tangent_from_ordered_coords(ordered_coords):
 	print  "nothing"
 	#given a list of ordered coordinates from a skeleton, calculat the mean tangent line 
 
-def count_tube_lengths(filename, thresh = 2, low = 1, high = 50, radius = 3):
-	tube_lengths = []
-
+def count_seeds_per_network(filename, filename_seeds, plot_filename):
+	number_of_seeds = []
 	image= io.imread(filename)
 
 
@@ -191,7 +232,7 @@ def count_tube_lengths(filename, thresh = 2, low = 1, high = 50, radius = 3):
 			#image = threshold_local(image_unthresholded, block_size, offset=10)
 			#image_647 = threshold_local(image_647_unthresholded, block_size, offset=10)
 
-	
+	radius = 1
 	selem = disk(radius)
 
 			#thresholding both files (getting rid of this because it should not be necessary!)
@@ -202,16 +243,16 @@ def count_tube_lengths(filename, thresh = 2, low = 1, high = 50, radius = 3):
 
 
 			#perfoming edge detection and morphological filling
-	edges_open = canny(image, thresh, low, high) #originally 2,1,25 last param can go up to 500 for improved performance, must lower for poorer images
+	edges_open = canny(image, .5, 15, 100) #originally 2,1,25 last param can go up to 500 for improved performance, must lower for poorer images
 			#edges_open = canny(image, 2) #originally 2,1,25
-	
+	selem = disk(3)#originally 5
 	edges = closing(edges_open, selem)
 	fill_tubes = ndi.binary_fill_holes(edges)
-		#io.imsave(str(i)+"_fill_tubes.png", img_as_uint(fill_tubes), cmap=cm.gray)
-	io.imsave("fill_tubes.png", img_as_uint(fill_tubes))
+	io.imsave("fill_tubes.png", img_as_uint(fill_tubes), cmap=cm.gray)
+	#io.imshow(img_as_uint(fill_tubes))
+
 	cy3_endpoint_mask, skeleton = make_endpoints_mask(fill_tubes)
 			#io.imsave(str(i)+"_skeleton.png", img_as_uint(img_as_bool(skeleton)), cmap=cm.gray)
-	#io.imshow(img_as_uint(img_as_bool(skeleton)), cmap=cm.gray)
 			#print fill_tubes
 		#print skeleton
 		#print cy3_endpoint_mask
@@ -226,14 +267,86 @@ def count_tube_lengths(filename, thresh = 2, low = 1, high = 50, radius = 3):
 	label_image = label(fill_tubes)
 
 
-	print "number of detected nanotubes: ", len(regionprops(label_image))
-		
+	print "number of detected networks: ", len(regionprops(label_image))
+
+	#now we will count/identify the seeds
+	image_seeds = io.imread(filename_seeds)
+	
+	print "now detecting seeds"
+	blobs_log = blob_log(image_seeds, min_sigma=.75, max_sigma=3, num_sigma=10, threshold=.5)
+	#blobs_log = blob_log(image_gray, max_sigma=1, num_sigma=10, threshold=.1)
+
+	print "number of seeds: "+str(len(blobs_log))
+
+		# Compute radii in the 3rd column.
+	blobs_log[:, 2] = blobs_log[:, 2] * sqrt(2)
+
+
+	blobs_list = blobs_log
+	colors = ['yellow']
+	titles = ['Laplacian of Gaussian']
+	sequence = zip(blobs_list, colors, titles)
+
+	fig, axes = plt.subplots(1, 3, figsize=(12, 4), sharex = True, sharey = True)
+	#ax.set_aspect('equal')
+	ax = axes.ravel()
+
+	ax[0].set_title("original_tubes")
+	ax[0].imshow(image, cmap = "gray")
+
+	ax[1].set_title("original_seeds")
+	ax[1].imshow(image_seeds, cmap = 'gray')
+
+	ax[2].set_title("processed")
+
+	ax[2].imshow(fill_tubes, interpolation='nearest')
+	print blobs_list 
+	for blob in blobs_list:
+		print blob 
+	 	y, x, r = blob
+		c = plt.Circle((x, y), r, color='yellow', linewidth=2, fill=False)
+		ax[2].add_patch(c)
+		#ax[idx].set_axis_off()
+
+	#plt.tight_layout()
+	plt.savefig(plot_filename)
+	network_areas = []
 	for region in regionprops(label_image):
-		if region.area/tube_width >= length_cutoff and region.eccentricity >= eccentricity_cutoff:
-			region_coords = region.coords.tolist()
-			tube_lengths.append(region.area/tube_width)
-	print tube_lengths
-	return tube_lengths
+		region_coords_list = region.coords.tolist()
+		#print "region coords: ", region_coords_list 
+		seed_count = 0
+		for blob in blobs_log:
+			seed_coords = [blob[0], blob[1]]
+			#print "seed coords: ", seed_coords
+			for region_coords in region_coords_list:
+				distance = calc_distance(seed_coords, region_coords)
+				if distance <=3:
+					seed_count += 1
+					break
+		area = float(region.area)/(.17*.17)
+		network_areas.append(area)
+	'''print image.dtype
+	image = (image/256).astype('uint8')
+	print image.dtype 
+	image_seeds = (image_seeds/256).astype('uint8')
+	
+	io.imsave(filename+"_converted.tiff", image)
+	io.imsave(filename_seeds+"_converted.tiff", image_seeds)'''
+
+	plt.clf()
+	fig, ax = plt.subplots()
+	ax.imshow(fill_tubes, interpolation='nearest', cmap = 'Greens')
+	for blob in blobs_list:
+		print blob
+	 	y, x, r = blob
+		c = plt.Circle((x, y), r, color='blue', linewidth=1, fill=True)
+		ax.add_patch(c)
+		#ax[idx].set_axis_off()
+	plt.savefig(plot_filename+"individual.png")
+	print number_of_seeds
+	return network_areas
+
+
 
 
 
@@ -287,7 +400,7 @@ def process_tiff_stacks(filename):
 
 
 			#perfoming edge detection and morphological filling
-			edges_open = canny(image, 2, 1, 50) #originally 2,1,25 last param can go up to 500 for improved performance, must lower for poorer images
+			edges_open = canny(image, .05, .5, 5) #originally 2,1,25 last param can go up to 500 for improved performance, must lower for poorer images
 			#edges_open = canny(image, 2) #originally 2,1,25
 			selem = disk(3)#originally 5
 			edges = closing(edges_open, selem)
@@ -348,6 +461,45 @@ def process_tiff_stacks(filename):
 		for angle_ in tube_angles:
 			print >>f1, angle_
 		f1.close()
+#modifying the joining detection script to measure the angle of Sisi's nanotubes relative to the x-axis of her images 
+
+#constants
+#constants
+tube_width = 5.0
+length_cutoff = 3.0 
+eccentricity_cutoff = 0.5
+end_to_end_distance_cutoff = 10.0
+
+#count_seeds_per_network("Lime 3.tif", "Blue 3.tif")
+
+time_dirs = ['4']
+
+
+for time_dir in time_dirs:
+	network_area_time = []	
+	tube_file_list = os.listdir(time_dir+'/tube')
+	seed_file_list = os.listdir(time_dir+'/seed')
+	for i in range(len(tube_file_list)):
+		tube_file = tube_file_list[i]
+		seed_file = seed_file_list[i]
+		tube_full_file = time_dir+"/"+"tube/"+tube_file
+		seed_full_file = time_dir+"/"+"seed/"+seed_file
+		print 'tube file is: ', tube_full_file
+		print 'seed file is: ', seed_full_file
+		plot_filename = time_dir+ '_' + tube_file + '.png'
+		network_areas = count_seeds_per_network(tube_full_file, seed_full_file, plot_filename)
+		print network_areas
+		
+
+		network_area_time.extend(network_areas)
+		
+
+	print "printing attached seed percentages"
+	f1=open(time_dir+'_network_seeds_cluster_size.dat','w+')
+	for network_seed in network_area_time:
+		print >>f1, network_seed
+	f1.close()
+
 
 
 
