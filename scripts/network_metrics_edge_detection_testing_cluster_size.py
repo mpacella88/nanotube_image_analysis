@@ -243,7 +243,7 @@ def count_seeds_per_network(filename, filename_seeds, plot_filename):
 
 
 			#perfoming edge detection and morphological filling
-	edges_open = canny(image, .5, 15, 100) #originally 2,1,25 last param can go up to 500 for improved performance, must lower for poorer images
+	edges_open = canny(image, 1, 5, 100) #originally 2,1,25 last param can go up to 500 for improved performance, must lower for poorer images
 			#edges_open = canny(image, 2) #originally 2,1,25
 	selem = disk(3)#originally 5
 	edges = closing(edges_open, selem)
@@ -271,7 +271,10 @@ def count_seeds_per_network(filename, filename_seeds, plot_filename):
 
 	#now we will count/identify the seeds
 	image_seeds = io.imread(filename_seeds)
-	
+	mean_intensity = np.mean(image_seeds)
+	print "mean intensity is: ", mean_intensity
+	if mean_intensity>=60.0:
+		return [0]
 	print "now detecting seeds"
 	blobs_log = blob_log(image_seeds, min_sigma=.75, max_sigma=3, num_sigma=10, threshold=.5)
 	#blobs_log = blob_log(image_gray, max_sigma=1, num_sigma=10, threshold=.1)
@@ -400,7 +403,9 @@ def process_tiff_stacks(filename):
 
 
 			#perfoming edge detection and morphological filling
-			edges_open = canny(image, .05, .5, 5) #originally 2,1,25 last param can go up to 500 for improved performance, must lower for poorer images
+			#optimized for jasen's latest images
+			edges_open = canny(image, 1, 5, 100)
+			#edges_open = canny(image, .05, .5, 5) #originally 2,1,25 last param can go up to 500 for improved performance, must lower for poorer images
 			#edges_open = canny(image, 2) #originally 2,1,25
 			selem = disk(3)#originally 5
 			edges = closing(edges_open, selem)
@@ -472,7 +477,7 @@ end_to_end_distance_cutoff = 10.0
 
 #count_seeds_per_network("Lime 3.tif", "Blue 3.tif")
 
-time_dirs = ['4']
+time_dirs = ['1','6','25','49']
 
 
 for time_dir in time_dirs:

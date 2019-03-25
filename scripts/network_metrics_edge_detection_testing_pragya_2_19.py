@@ -219,7 +219,7 @@ def calc_mean_tangent_from_ordered_coords(ordered_coords):
 def count_seeds_per_network(filename, filename_seeds, plot_filename):
 	number_of_seeds = []
 	image= io.imread(filename)
-	#image = img_as_ubyte(image)
+	image = img_as_ubyte(image)
 
 
 			#cy3_file = cy3_file_list[i]
@@ -245,7 +245,7 @@ def count_seeds_per_network(filename, filename_seeds, plot_filename):
 
 
 			#perfoming edge detection and morphological filling
-	edges_open = canny(image, 1, 5, 100) #originally 2,1,25 last param can go up to 500 for improved performance, must lower for poorer images
+	edges_open = canny(image, 1, 5, 200) #originally 2,1,25 last param can go up to 500 for improved performance, must lower for poorer images
 			#edges_open = canny(image, 2) #originally 2,1,25
 	selem = disk(3)#originally 5
 	edges = closing(edges_open, selem)
@@ -274,7 +274,7 @@ def count_seeds_per_network(filename, filename_seeds, plot_filename):
 	#now we will count/identify the seeds
 	image_seeds = io.imread(filename_seeds)
 
-	#image_seeds = img_as_ubyte(image_seeds)
+	image_seeds = img_as_ubyte(image_seeds)
 	
 	print "now detecting seeds"
 	#if is_low_contrast(image_seeds, fraction_threshold = 0.10) == True:
@@ -490,7 +490,7 @@ end_to_end_distance_cutoff = 10.0
 #count_seeds_per_network("Lime 3.tif", "Blue 3.tif")
 
 #time_dirs = ['big_network_test']
-time_dirs = ['1','6','25','49']
+time_dirs = ['1']
 
 network_sizes = []
 for time_dir in time_dirs:

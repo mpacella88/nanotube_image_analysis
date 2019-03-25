@@ -22,6 +22,13 @@ from skimage import img_as_uint, img_as_bool, img_as_float
 from skimage.draw import circle 
 from skimage.measure import label, regionprops, find_contours
 from scipy import ndimage
+from matplotlib import cm 
+
+#the way this will work, all abs will be included for calculating the binding fraction with real seeds, 
+#for finding the simulated "null" binding fraction based on the density of abs on the membrane I will
+#use sisi's optimal membrane thickness to first cull the number of abs counted as being on the membrane 
+
+#only count seeds that are within proximity of membrane 
 
 def count_seeds(filename, blob_log_thresh = .01):
 	"""count the number of seeds in a grayscale image using the laplacian
@@ -165,15 +172,18 @@ def report_binding_fraction_real_seeds(seed_coords, ab_coords, cutoff_distance =
 	print "reporting binding fractions for real seeds"
 	attached_seed_coordinates = []
 	plt.clf()
-	fig, ax = plt.subplots(figsize=(3, 3))
-	ax.set_aspect('equal')
+	#fig, ax = plt.subplots(figsize=(3, 3))
+	#ax.set_aspect('equal')
 	for seed_coord in seed_coords:
+		print "seed coords are: ", seed_coord[1], seed_coord[0]
+	for seed_coord in seed_coords:
+		print "seed coords are: ", seed_coord[1], seed_coord[0]
 		for ab_coord in ab_coords:
 			distance = calc_distance(seed_coord, ab_coord)
 			print "distance is: ", distance
-			print ab_coord[1], ab_coord[0]
-			c = plt.Circle((ab_coord[1], ab_coord[0]), radius = 3, color='yellow', linewidth=2, fill=False)
-	        	ax.add_patch(c) 
+			print "ab coords are: ", ab_coord[1], ab_coord[0]
+			#c = plt.Circle((ab_coord[1], ab_coord[0]), radius = 3, color='yellow', linewidth=2, fill=False)
+	        	#ax.add_patch(c) 
 			if distance <= cutoff_distance:
 				#print "attached seed detected"
 				print "distance is: ", distance 
@@ -215,11 +225,7 @@ def count_abs_in_membrane(ab_filename, seed_filename):
 	image_seed = io.imread(seed_filename)
 	seed_blobs = blob_log(image_seed, max_sigma=30, num_sigma=10, threshold=.005)
 	seed_coords_list = []
-	for seed in seed_blobs:
-		if seed[2] <= 2.0:#only consider blobs with small radii, these are the seeds/abs
-			seed_coordinates = seed[0:2]
-			seed_coords_list.append(seed_coordinates)
-	seed_coords_array = np.vstack(seed_coords_list)
+
 
 
 	#now we will perform edge detection on the seed image to find the perimeter of the cell
@@ -288,10 +294,12 @@ def count_abs_in_membrane(ab_filename, seed_filename):
 	#ax.imshow(img_as_uint(fill_tubes))
 	#plt.savefig("plots/"+ab_filename+"processed.pdf")
 
-	ax.imshow(img_cell, interpolation='nearest')
+	ax.imshow(img_cell, interpolation='nearest', cmap=cm.Greys, alpha = .6)
+	ax.set_yticklabels([])
+	ax.set_xticklabels([])
 	#now for each edge pixel draw a circle of a cutoff radius
 	#this should match the cutoff distance for considering an ab to be part of the membrane
-	membrane_radius = 1
+	membrane_radius = 1 #should be 1
 	img_membrane = np.zeros((512,512), dtype=np.uint8)
 	print "number of edge points: ", len(edge_indices)
 	for edge_point in edge_indices:
@@ -299,17 +307,17 @@ def count_abs_in_membrane(ab_filename, seed_filename):
 		rr, cc = circle(edge_point[0], edge_point[1], membrane_radius)
 		img_membrane[rr, cc] = 1
 
-		c = plt.Circle((edge_point[1], edge_point[0]), membrane_radius, color='green', linewidth=2, fill=True)
+		c = plt.Circle((edge_point[1], edge_point[0]), membrane_radius, color='blue', linewidth=2, fill=True)
 		ax.add_patch(c) 
 	
 	#plotting abs
-	for idx, (blobs, color, title) in enumerate(sequence):
+	#for idx, (blobs, color, title) in enumerate(sequence):
 	    #ax[idx].set_title(title)
-	    for blob in blobs:
-	        y, x, r = blob
-	        if r <= 2.0:
-	        	c = plt.Circle((x, y), r, color='yellow', linewidth=2, fill=False)
-	        	ax.add_patch(c)
+	for blob in ab_blobs:
+	    y, x, r = blob
+	    if r <= 2.0:
+	    	c = plt.Circle((x, y), r*4, color='green', linewidth=0, fill=True)
+	    	ax.add_patch(c)
 
 	#plotting seeds
 	seed_blobs_list = [seed_blobs]
@@ -318,7 +326,7 @@ def count_abs_in_membrane(ab_filename, seed_filename):
 	#print blob 
 		y, x, r = blob
 		if r <= 2.0:
-			c = plt.Circle((x, y), r*8, color='orange', linewidth=1, fill=False)
+			c = plt.Circle((x, y), r*8, color='red', linewidth=0, fill=True, alpha = .40)
 			ax.add_patch(c)
 	plt.savefig("plots/"+ab_filename+"processed_just_seeds.pdf")
 
@@ -328,6 +336,14 @@ def count_abs_in_membrane(ab_filename, seed_filename):
 			ab_coords_list.append(ab_coordinates)
 	ab_coords_list = np.vstack(ab_coords_list)
 	#print ab_coords_list
+
+	for seed in seed_blobs:
+		if seed[2] <= 2.0:#only consider blobs with small radii, these are the seeds/abs
+			seed_coordinates = seed[0:2]
+			seed_coords_list.append(seed_coordinates)
+	if len(seed_coords_list) == 0:
+		return "no seeds", "no seeds"
+	seed_coords_array = np.vstack(seed_coords_list)
 
 
 	#culling the antibody points for counting 
@@ -340,7 +356,7 @@ def count_abs_in_membrane(ab_filename, seed_filename):
 			if point1[0] == point2[0] and point1[1] == point2[1]:
 				continue
 			p2p_distance = calc_distance(point1, point2)
-			if p2p_distance <= 50:
+			if p2p_distance <= 150:
 				n_neighbors+=1
 			if n_neighbors>=3:
 				include_point = True 
@@ -357,22 +373,85 @@ def count_abs_in_membrane(ab_filename, seed_filename):
 	#print culled_ab_points_array
 
 	#now we will only count abs that are within a cutoff distance of one of the edge pixels
-	culled_ab_points_array_on_edge = []
+	membrane_radius = 10 
+	culled_ab_points_on_edge_for_real_calculation = []
 	for point1 in culled_ab_points_array:
 		include_point = False
 		for point2 in edge_indices:
 			if point1[0] == point2[0] and point1[1] == point2[1]:
+				culled_ab_points_on_edge_for_real_calculation.append(point1)
 				continue
 			p2p_distance = calc_distance(point1, point2)
 			#print "distance is: ", p2p_distance
 			if p2p_distance <= membrane_radius:
 				print "close to edge, counting this one"
 				include_point = True 
-				culled_ab_points_array_on_edge.append(point1)
+				culled_ab_points_on_edge_for_real_calculation.append(point1)
 				break
 
+	#now we will only count seeds that are within a cutoff distance of one of the edge pixels
+	membrane_radius = 10 
+	culled_seeds = []
+	for point1 in seed_coords_array:
+		include_point = False
+		for point2 in edge_indices:
+			if point1[0] == point2[0] and point1[1] == point2[1]:
+				culled_seeds.append(point1)
+				continue
+			p2p_distance = calc_distance(point1, point2)
+			#print "distance is: ", p2p_distance
+			if p2p_distance <= membrane_radius:
+				print "close to edge, counting this one"
+				include_point = True 
+				culled_seeds.append(point1)
+				break
+	if len(culled_seeds) == 0:
+		return "no seeds", "no seeds"
+	seed_coords_array = np.vstack(culled_seeds)
 
-	culled_binding_fraction = report_binding_fraction_real_seeds(seed_coords_array, culled_ab_points_array_on_edge)
+	culled_ab_points_array_on_edge_for_real_calculation = np.vstack(culled_ab_points_on_edge_for_real_calculation)
+	culled_binding_fraction = report_binding_fraction_real_seeds(seed_coords_array, culled_ab_points_array_on_edge_for_real_calculation)
+
+	membrane_radius = 1 
+	culled_ab_points_on_edge = []
+	for point1 in culled_ab_points_array:
+		include_point = False
+		for point2 in edge_indices:
+			if point1[0] == point2[0] and point1[1] == point2[1]:
+				culled_ab_points_on_edge.append(point1)
+				continue
+			p2p_distance = calc_distance(point1, point2)
+			#print "distance is: ", p2p_distance
+			if p2p_distance <= membrane_radius:
+				print "close to edge, counting this one"
+				include_point = True 
+				culled_ab_points_on_edge.append(point1)
+				break
+
+	culled_ab_points_array_on_edge = np.vstack(culled_ab_points_on_edge)
+	
+
+	plt.clf()
+	fig, ax = plt.subplots(figsize=(3, 3))
+	ax.set_aspect('equal')
+	ax.imshow(img_cell, interpolation='nearest')
+
+	for blob in seed_blobs:
+	#print blob 
+		y, x, r = blob
+		if r <= 2.0:
+			c = plt.Circle((x, y), r*8, color='red', linewidth=1, fill=True, alpha = .5)
+			ax.add_patch(c)
+	for culled_ab in culled_ab_points_array_on_edge:
+	#print blob 
+		y, x = culled_ab[0], culled_ab[1]
+		c = plt.Circle((x, y), 5, color='green', linewidth=1, fill=True)
+		ax.add_patch(c)
+
+	plt.savefig("plots/"+ab_filename+"post_culling_processed_just_seeds.pdf")
+
+	#culled_ab_points_array_on_edge = np.vstack(culled_ab_points_on_edge)
+	#culled_binding_fraction = report_binding_fraction_real_seeds(seed_coords_array, culled_ab_points_array_on_edge)
 
 	pairwise_distances = []
 	for i in range(len(culled_ab_points_array)):
@@ -407,7 +486,7 @@ def count_abs_in_membrane(ab_filename, seed_filename):
 		null_fraction = report_binding_fraction(simulated_seed_coords_array, culled_ab_points_array_on_edge)
 		#print "null fraction: ", null_fraction 
 		null_fractions.append(null_fraction)
-	print null_fractions
+	#print null_fractions
 	null_binding_fraction = sum(null_fractions)/len(null_fractions)
 
 
@@ -417,7 +496,7 @@ def count_abs_in_membrane(ab_filename, seed_filename):
 	
 
 
-#time_dirs = [ '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12']
+#time_dirs = ['3', '4', '5', '6', '7', '8', '9', '10', '11', '12']
 #time_dirs = [ '1', '2', '3', '4']
 time_dirs = ['test']
 time_ab_membrane_counts = []
@@ -445,23 +524,27 @@ for time_dir in time_dirs:
 		#	continue 
 		#except IndexError:
 		#	continue 
-		
+		if culled_binding_fraction == "no seeds":
+			continue 
 
 		culled_binding_fractions.append(culled_binding_fraction)
 		null_binding_fractions.append(null_binding_fraction)
 	
 	
 	total_binding_fraction = sum(culled_binding_fractions)/float(len(culled_binding_fractions))
+	total_null_binding_fraction = sum(null_binding_fractions)/float(len(null_binding_fractions))
 	print "printing culled_binding_fractions"
 	f1=open(time_dir+'_culled_binding_fraction_optimal_membrane.dat','w+')
-	for fraction in culled_binding_fractions:
-		print >>f1, fraction
+	#for fraction in culled_binding_fractions:
+		#print >>f1, fraction
+	print >>f1, total_binding_fraction
 	f1.close()
 
 	print "printing null_binding_fractions"
 	f1=open(time_dir+'_null_binding_fraction_optimal_membrane.dat','w+')
-	for fraction in null_binding_fractions:
-		print >>f1, fraction
+	#for fraction in null_binding_fractions:
+	#	print >>f1, fraction
+	print >>f1, total_null_binding_fraction
 	f1.close()
 
 '''print "printing average pairwise distance for time points"

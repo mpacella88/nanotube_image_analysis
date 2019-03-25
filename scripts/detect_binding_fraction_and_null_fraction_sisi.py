@@ -336,7 +336,7 @@ def detect_ab_null_membrane_fraction(ab_filename, seed_filename):
 #cell_dirs = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12']
 
 
-cell_dirs = [ '4', '5', '6', '7', '8', '9', '10', '11', '12']
+cell_dirs = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12']
 attached_seed_percentages = []
 null_fractions = []
 for cell_dir in cell_dirs:	
