@@ -27,13 +27,13 @@ import pdb
 def initialize_system():
 	#using expt data we will initialize the system with the proper number of 1, 2, 3 armed structures
 	system = nx.Graph()
-	n_1arm_pos = 150 #7
-	n_2arm_pos = 400 #13
-	n_3arm_pos = 550 #13
+	n_1arm_pos = 15 #7
+	n_2arm_pos = 40 #13
+	n_3arm_pos = 55 #13
 
-	n_1arm_neg = 150 #13
-	n_2arm_neg = 400 #27
-	n_3arm_neg = 550#27
+	n_1arm_neg = 15 #13
+	n_2arm_neg = 40 #27
+	n_3arm_neg = 55#27
 	for i in range(n_1arm_pos):
 		system.add_node(system.number_of_nodes()+1, arms = 1, adapter = 'pos')
 	for i in range(n_2arm_pos):
@@ -119,7 +119,7 @@ def update_rtot(old_rtot, network_1, network_2, new_network, system_old):
 	return rtot 
 
 
-def compute_rtot_intra(system):
+#def compute_rtot_intra(system):
 	#given the system, find the total rtot of all intra network joining events 
 	#loop over each network (connected subgraph) and consider all pairwise joinings between tube ends to find rtot for that network
 
@@ -138,7 +138,7 @@ def compute_rtot_for_individual_network(network):
 		if network.degree(node) < narms and network.node[node]['adapter'] == 'neg':
 			valid_negative_attachment_points += narms - network.degree(node)
 
-def joining_rate_intra_network(network, node1, narms1, node2, narms2):
+#def joining_rate_intra_network(network, node1, narms1, node2, narms2):
 	#given a network and a pair of nodes that will be joined, compute the joining rate between the nodes
 	#this is a placeholder for now giving a constant rate but it could be possible to account for how far apart the two nodes 
 	#are and factor that into the joining rates somehow 
@@ -499,6 +499,13 @@ def perform_gillespie_simulation(i):
 				f1=open(str(previous_time)+"_network_size_count.dat", 'w+')
 				for graph in graphs:
 					print >>f1, graph.number_of_nodes()
+				f1.close()
+
+				print "outputting lowest node number of each network for tracking"
+				f1=open(str(previous_time)+"_network_tracking.dat", 'w+')
+				for graph in graphs:
+					lowest_node_number = min(graph.nodes())
+					print >>f1, lowest_node_number
 				f1.close()
 
 

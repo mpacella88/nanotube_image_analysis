@@ -4,7 +4,27 @@ import matplotlib.pyplot as plt
 #from networkx.drawing.nx_agraph import graphviz_layout
 #from datetime import datetime
 import pdb
+import pickle
 #startTime = datetime.now()
+#introducing some global dictionary to track the history of each network....
+#a list of JoiningEvents, find the one with the largest network at the end of the sim and trace it backwards!
+#need dictionary that connects lowest nodes to JoiningEvents
+class JoiningEvent:
+	def __init__(self, parent_network_1, parent_network_2):
+		self.p1 = parent_network_1
+		self.p2 = parent_network_2
+		self.lowest_node_1 = min(parent_network_1.nodes())
+		self.lowest_node_2 = min(parent_network_2.nodes())
+		self.p1_size = parent_network_1.number_of_nodes()
+		self.p2_size = parent_network_2.number_of_nodes()
+
+
+	def larger_parent(self):
+		if self.p1.number_of_nodes() >= self.p2.number_of_nodes():
+			return self.lowest_node_1
+		else: 
+			return self.lowest_node_2
+
 
 #optimizing performance 
 
@@ -27,26 +47,26 @@ import pdb
 def initialize_system():
 	#using expt data we will initialize the system with the proper number of 1, 2, 3 armed structures
 	system = nx.Graph()
-	n_1arm_pos = 150 #7
-	n_2arm_pos = 400 #13
-	n_3arm_pos = 550 #13
+	n_1arm_pos = 150 #15
+	n_2arm_pos = 400 #40
+	n_3arm_pos = 550 #55
 
-	n_1arm_neg = 150 #13
-	n_2arm_neg = 400 #27
-	n_3arm_neg = 550#27
+	n_1arm_neg = 150 #15
+	n_2arm_neg = 400 #40
+	n_3arm_neg = 550 #55
 	for i in range(n_1arm_pos):
-		system.add_node(system.number_of_nodes()+1, arms = 1, adapter = 'pos')
+		system.add_node(system.number_of_nodes()+1, arms = 1, adapter = 'pos', parent1 = 'null', parent2 = 'null')
 	for i in range(n_2arm_pos):
-		system.add_node(system.number_of_nodes()+1, arms = 2, adapter = 'pos')
+		system.add_node(system.number_of_nodes()+1, arms = 2, adapter = 'pos', parent1 = 'null', parent2 = 'null')
 	for i in range(n_3arm_pos):
-		system.add_node(system.number_of_nodes()+1, arms = 3, adapter = 'pos')
+		system.add_node(system.number_of_nodes()+1, arms = 3, adapter = 'pos', parent1 = 'null', parent2 = 'null')
 
 	for i in range(n_1arm_neg):
-		system.add_node(system.number_of_nodes()+1, arms = 1, adapter = 'neg')
+		system.add_node(system.number_of_nodes()+1, arms = 1, adapter = 'neg', parent1 = 'null', parent2 = 'null')
 	for i in range(n_2arm_neg):
-		system.add_node(system.number_of_nodes()+1, arms = 2, adapter = 'neg')
+		system.add_node(system.number_of_nodes()+1, arms = 2, adapter = 'neg', parent1 = 'null', parent2 = 'null')
 	for i in range(n_3arm_neg):
-		system.add_node(system.number_of_nodes()+1, arms = 3, adapter = 'neg')
+		system.add_node(system.number_of_nodes()+1, arms = 3, adapter = 'neg', parent1 = 'null', parent2 = 'null')
 
 	print "initial number of nodes: ", system.number_of_nodes()
 
@@ -119,7 +139,7 @@ def update_rtot(old_rtot, network_1, network_2, new_network, system_old):
 	return rtot 
 
 
-def compute_rtot_intra(system):
+#def compute_rtot_intra(system):
 	#given the system, find the total rtot of all intra network joining events 
 	#loop over each network (connected subgraph) and consider all pairwise joinings between tube ends to find rtot for that network
 
@@ -138,7 +158,7 @@ def compute_rtot_for_individual_network(network):
 		if network.degree(node) < narms and network.node[node]['adapter'] == 'neg':
 			valid_negative_attachment_points += narms - network.degree(node)
 
-def joining_rate_intra_network(network, node1, narms1, node2, narms2):
+#def joining_rate_intra_network(network, node1, narms1, node2, narms2):
 	#given a network and a pair of nodes that will be joined, compute the joining rate between the nodes
 	#this is a placeholder for now giving a constant rate but it could be possible to account for how far apart the two nodes 
 	#are and factor that into the joining rates somehow 
@@ -244,6 +264,11 @@ def perform_joining(network_1, network_2, system):
 	#this edge is added at a random available "tube endpoint"
 	print network_1
 	print network_2
+	
+	#network_1_lowest_node = min(network_1.nodes())
+	#network_2_lowest_node = min(network_2.nodes())
+
+	joining_event = JoiningEvent(network_1, network_2)
 
 	connectivity_dict1 = nx.get_node_attributes(network_1, 'arms')
 	connectivity_dict2 = nx.get_node_attributes(network_2, 'arms')
@@ -262,7 +287,7 @@ def perform_joining(network_1, network_2, system):
 	new_network.add_edge(network_1_node, network_2_node)
 	
 
-	return system, new_network
+	return system, new_network, joining_event
 
 
 
@@ -396,15 +421,29 @@ def update_joining_matrix(joining_matrix, joining_matrix_index_dictionary, joine
 	#pdb.set_trace()
 	return joining_matrix, joining_matrix_index_dictionary
 
+def find_largest_parent(lowest_node, joining_event_list, current_je_index):
+	for i in range(current_je_index-1, 0, -1):
+		joining_event = joining_event_list[i]
+		if joining_event.lowest_node_1 == lowest_node or joining_event.lowest_node_2 == lowest_node:
+			new_je_index = i
+			new_lowest_node = joining_event.larger_parent()
+			network_size = joining_event.p1_size + joining_event.p2_size
+			return new_je_index, new_lowest_node, network_size 
+			break 
+	#if we get to here then there are no more parents!
+	return 0, 0, 1
+			
+
 
 
 def perform_gillespie_simulation(i):
 	#np.random.seed(1337)
 	#initialize the system according the expt starting conditions
 	system = initialize_system()
+	joining_event_list = []
 
 	#this can be adjusted to reflect the time measured in our experiments
-	number_of_joining_steps = system.number_of_nodes()-100 #we will stop just short of everything in the system being joined to itself
+	number_of_joining_steps = system.number_of_nodes()-100 #-100 #we will stop just short of everything in the system being joined to itself
 	
 	#these are stats that we will track over time
 	average_nodes_per_network = [1]
@@ -453,7 +492,10 @@ def perform_gillespie_simulation(i):
 		joined_network_1, joined_network_2, index_1, index_2 = choose_joining_reaction(rtot, system, joining_matrix, joining_matrix_index_dictionary)
 
 		#now we actually perform the joining reaction by creating an edge between the two networks  
-		system, new_network = perform_joining(joined_network_1, joined_network_2, system)
+		system, new_network, joining_event = perform_joining(joined_network_1, joined_network_2, system)
+
+		#append the new joining event to the list
+		joining_event_list.append(joining_event)
 
 		new_joining_matrix, new_joining_matrix_index_dictionary = update_joining_matrix(joining_matrix, joining_matrix_index_dictionary, joined_network_1, joined_network_2, new_network, index_1, index_2, system)
 		joining_matrix = new_joining_matrix
@@ -477,6 +519,10 @@ def perform_gillespie_simulation(i):
 		average_network_size_of_a_seed_list.append(average_network_size_of_a_seed)
 
 		#printing out data, do this every 200 time steps 
+		simulation_time_pickle = []
+		average_network_size_of_a_seed_pickle = []
+		network_size_pickle = []
+		network_tracking_pickle = []
 		if step%20 == 0:
 
 				print "printing current simulation time"
@@ -500,6 +546,62 @@ def perform_gillespie_simulation(i):
 				for graph in graphs:
 					print >>f1, graph.number_of_nodes()
 				f1.close()
+
+				print "outputting lowest node number of each network for tracking"
+				f1=open(str(previous_time)+"_network_tracking.dat", 'w+')
+				for graph in graphs:
+					lowest_node_number = min(graph.nodes())
+					print >>f1, lowest_node_number
+				f1.close()
+
+				print "outputting pickle "
+
+	#print joining_event_list
+
+	#for joining_event in joining_event_list:
+	#	print joining_event.p1_size
+	#	print joining_event.p2_size
+
+	#first we need to find the largest network in the joining event list and it's index
+	lowest_node_of_largest_network = 1
+	largest_network_size = 1
+	for graph in graphs:
+		network_size = graph.number_of_nodes()
+		if network_size > largest_network_size:
+			largest_network_size = network_size
+			lowest_node_of_largest_network = min(graph.nodes())
+	print len(joining_event_list)
+	for i in range(len(joining_event_list)-1, 0, -1):
+		joining_event = joining_event_list[i]
+		if joining_event.lowest_node_1 == lowest_node_of_largest_network or joining_event.lowest_node_2 == lowest_node_of_largest_network:
+			big_network_je_index = i
+			break 
+	print "lowest node of largest network", lowest_node_of_largest_network
+	print "largest network size", largest_network_size
+	print "most recent joining event index of largest network", big_network_je_index
+
+	#now we start with the big network je index and work backward through the list, printing the largest network size at each step
+	largest_network_size_list = []
+	big_network_je = joining_event_list[big_network_je_index]
+	current_je_index = big_network_je_index
+	print "big network larger parent: ", big_network_je.larger_parent()
+	lowest_node = big_network_je.larger_parent()
+
+	while current_je_index > 0:
+		print "current je index: ", current_je_index
+		print "current lowest node: ", lowest_node 
+		new_je_index, new_lowest_node, network_size = find_largest_parent(lowest_node, joining_event_list, current_je_index)
+		largest_network_size_list.append(network_size)
+		current_je_index = new_je_index
+		lowest_node = new_lowest_node
+
+	print largest_network_size_list
+
+	print "printing tracking info"
+	f1=open('largest_network_tracking.dat','w')
+	for bn_size in largest_network_size_list:
+		print >>f1, bn_size
+	f1.close()
 
 
 

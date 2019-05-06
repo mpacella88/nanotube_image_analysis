@@ -7,7 +7,8 @@ import pdb
 #startTime = datetime.now()
 
 #optimizing performance 
-
+inter_joining_rate = 1
+intra_joining_rate = 1
 
 #ok, idea is to use gillespie-type algorithm to explicitly track all species in our system
 #instead of designating "species" this algorithm will explicitly account for all structures in the system
@@ -122,6 +123,12 @@ def update_rtot(old_rtot, network_1, network_2, new_network, system_old):
 def compute_rtot_intra(system):
 	#given the system, find the total rtot of all intra network joining events 
 	#loop over each network (connected subgraph) and consider all pairwise joinings between tube ends to find rtot for that network
+	rtot = 0 
+	networks = list(nx.connected_component_subgraphs(system))
+	for network in networks:
+		rtot += compute_rtot_for_individual_network(network)
+
+	return rtot 
 
 def compute_rtot_for_individual_network(network):
 	#given an individual network, compute rtot by considering all pairwise joinings between tube ends for that network 
@@ -134,15 +141,25 @@ def compute_rtot_for_individual_network(network):
 	#has_valid_attachment_point_1 = False
 	for node, narms in connectivity_dict.iteritems():
 		if network.degree(node) < narms and network.node[node]['adapter'] == 'pos':
-			valid_positive_attachment_points += narms - network.degree(node)
+			valid_positive_attachment_nodes.append((node,narms - network.degree(node)))
+			#valid_positive_attachment_points += narms - network.degree(node)
 		if network.degree(node) < narms and network.node[node]['adapter'] == 'neg':
-			valid_negative_attachment_points += narms - network.degree(node)
+			valid_negative_attachment_nodes.append((node,narms - network.degree(node)))
+			#valid_negative_attachment_points += narms - network.degree(node)
+
+	rtot = 0 #initialize the rtot at zero
+	#now we will iterate over all possible joining pairs to calculate the total rtot (for intra joining reactions)
+	for node1, narms1 in valid_positive_attachment_nodes:
+		for node2, narms2 in valid_negative_attachment_nodes:
+			rtot+=joining_rate(network, node1, narms1, node2, narms2)
+
+	return rtot 
 
 def joining_rate_intra_network(network, node1, narms1, node2, narms2):
 	#given a network and a pair of nodes that will be joined, compute the joining rate between the nodes
 	#this is a placeholder for now giving a constant rate but it could be possible to account for how far apart the two nodes 
 	#are and factor that into the joining rates somehow 
-
+	return intra_joining_rate * narms1 * narms2 
 
 
 
@@ -190,9 +207,9 @@ def joining_rate(network_1, network_2):
 	#print "valid neg 2: ", valid_negative_attachment_points_2
 	number_of_possible_connections = float(valid_positive_attachment_points_1*valid_negative_attachment_points_2 + valid_negative_attachment_points_1*valid_positive_attachment_points_2)
 	#print "number of possible connections: ", number_of_possible_connections
-	kjoin = 1.0/(float(network_1.number_of_nodes()*float(network_2.number_of_nodes())))
-	return kjoin*number_of_possible_connections
-
+	#kjoin = 1.0/(float(network_1.number_of_nodes()*float(network_2.number_of_nodes())))
+	#return kjoin*number_of_possible_connections
+	return inter_joining_rate
 def compute_dt(rtot):
 	#compute dt from the total reaction rate according to the exponential distribution
 	dt = np.random.exponential(float(1.0/rtot))
@@ -395,7 +412,18 @@ def update_joining_matrix(joining_matrix, joining_matrix_index_dictionary, joine
 	#pdb.set_trace()
 	return joining_matrix, joining_matrix_index_dictionary
 
+def choose_inter_intra_joining(rtot_inter, rtot_intra):
+	#simple function that will choose inter or intra joining based on their rtots
+	rtot_total = rtot_intra + rtot_inter
+	reactions = ["inter", "intra"]
+	probabilities = [ float(rtot_inter/rtot_total), float(rtot_intra/rtot_total) ]
+	return np.random.choice(reactions, p = probabilities)
 
+
+def choose_intra_joining_reaction(rtot_intra, system):
+	#choose a specific intra-joining reaction once we have decided to perform an intra joining reaction
+	#we have rtot so we just need to compute the joining rates for all possible intra joining reactions 
+	networks = list(nx.connected_component_subgraphs(system))
 
 def perform_gillespie_simulation(i):
 	#np.random.seed(1337)
@@ -428,38 +456,54 @@ def perform_gillespie_simulation(i):
 	#different numbering in system vs the joining_matrix
 	#need a dictionary to convert joining matrix numbering to system networks
 
-	rtot = compute_rtot_from_joining_matrix(joining_matrix)
+	#calculat the rtot for intra_joining and inter_joining and use this to choose whether and inter or intra joining event will happen
+	rtot_inter = compute_rtot_from_joining_matrix(joining_matrix)
+	rtot_intra, intra_joining_dict = compute_rtot_intra(system)
 
-	print "rtot before loop starts: ", rtot 
+
+	print "rtot inter before loop starts: ", rtot_inter
+	print "rtot intra before loop starts: ", rtot_intra 
 	#joining_reactions_list, probabilities_list = generate_joining_reactions_list(system)
 	for step in range(number_of_joining_steps):
 		#print joining_matrix
 		print "updated rtot: ", rtot
 		#brute_force_rtot = compute_rtot_first(system)
 		#print "brute force rtot: ", brute_force_rtot
-		if rtot == 0.0:
+		if rtot_intra + rtot_inter == 0.0:
 			#no more reactions can occur
 			break
-		dt = compute_dt(rtot)
+		dt = compute_dt( rtot_inter + rtot_intra )
 		#print dt 
-		previous_time = time[len(time)-1]
+		previous_time = time[ len( time ) -1]
 		time.append(previous_time + dt)
 
 
+		#first we need to decide if an intra or an inter joining reaction will occur 
+		#using their respective rtots 
+		joining_type = choose_inter_intra_joining(rtot_inter, rtot_intra)
 
-		#now we need to determine which joining reaction will occur
-		#the probability for a given reaction is that reaction's rate over rtot
-		joined_network_1, joined_network_2, index_1, index_2 = choose_joining_reaction(rtot, system, joining_matrix, joining_matrix_index_dictionary)
+		if joining_type = "inter":
+			#now we need to determine which joining reaction will occur
+			#the probability for a given reaction is that reaction's rate over rtot
+			joined_network_1, joined_network_2, index_1, index_2 = choose_joining_reaction(rtot_inter, system, joining_matrix, joining_matrix_index_dictionary)
 
-		#now we actually perform the joining reaction by creating an edge between the two networks  
-		system, new_network = perform_joining(joined_network_1, joined_network_2, system)
+			#now we actually perform the joining reaction by creating an edge between the two networks  
+			system, new_network = perform_joining(joined_network_1, joined_network_2, system)
 
-		new_joining_matrix, new_joining_matrix_index_dictionary = update_joining_matrix(joining_matrix, joining_matrix_index_dictionary, joined_network_1, joined_network_2, new_network, index_1, index_2, system)
-		joining_matrix = new_joining_matrix
-		joining_matrix_index_dictionary = new_joining_matrix_index_dictionary
+			new_joining_matrix, new_joining_matrix_index_dictionary = update_joining_matrix(joining_matrix, joining_matrix_index_dictionary, joined_network_1, joined_network_2, new_network, index_1, index_2, system)
+			joining_matrix = new_joining_matrix
+			joining_matrix_index_dictionary = new_joining_matrix_index_dictionary
 
-		rtot_new = compute_rtot_from_joining_matrix(joining_matrix)
-		rtot = rtot_new #updating rtot for the next iteration
+			rtot_inter_new = compute_rtot_from_joining_matrix(joining_matrix)
+			rtot_inter = rtot_new #updating rtot for the next iteration
+
+		if joining_type = "intra":
+			#we have chosen an intra network joining reaction 
+			node1, node2, network = choose_intra_joining_reaction(rtot_intra, system)
+			system = perform_intra_joining(node1, node2, system)
+
+			update_joining_matrix_intra(system, network)
+
 
 		graphs = list(nx.connected_component_subgraphs(system))
 		print "new number of connected graphs", len(graphs)
@@ -476,7 +520,7 @@ def perform_gillespie_simulation(i):
 		average_network_size_of_a_seed_list.append(average_network_size_of_a_seed)
 
 		#printing out data, do this every 200 time steps 
-		if step%20 == 0:
+		if step%200 == 0:
 
 				print "printing current simulation time"
 				f1=open('simulation_time.dat', 'a')

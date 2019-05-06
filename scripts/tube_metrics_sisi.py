@@ -27,7 +27,7 @@ from skimage.external import tifffile
 
 #constants
 #constants
-tube_width = 5.0
+tube_width = 6.0
 length_cutoff = 3.0 
 eccentricity_cutoff = 0.5
 end_to_end_distance_cutoff = 10.0
@@ -253,16 +253,18 @@ def process_tiff_stacks(filename):
 	'''
 
 	cy3_image_stack = tifffile.imread(filename)
-
+	average_tube_lengths = []
+	time_points = []
 	for image in cy3_image_stack:
 		total_images = len(cy3_image_stack)
 		current_frame = i
 		i+=1
+		time_points.append(i)
 		print "processing frame " +str(i) + " of "+str(total_images)
-		mask = image < 24000
-		mask2 = image >= 24000
+		mask = image < 20000
+		mask2 = image >= 20000
 		image[mask] = 0
-		image[mask2] = 1
+		#image[mask2] = 1
 		#cy3_file = cy3_file_list[i]
 		#print "cy3 filename is "+str(cy3_file)
 		#image_unthresholded = io.imread(cy3_file)
@@ -273,63 +275,89 @@ def process_tiff_stacks(filename):
 		#image_647 = threshold_local(image_647_unthresholded, block_size, offset=10)
 		radius = 2
 		selem = disk(radius)
+		#global_otsu = threshold_otsu(image)
+		#image_thresh = image>global_otsu
 		#thresholding both files (getting rid of this because it should not be necessary!)
 		#image = rank.otsu(image_unthresholded, selem)
 		#image_647 = rank.otsu(image_647_unthresholded, selem)
 		#image = image_unthresholded
 		#perfoming edge detection and morphological filling
-		###edges_open = canny(image, 1) #originally 2,1,25 last param can go up to 500 for improved performance, must lower for poorer images
+		edges_open = canny(image, 1) #originally 2,1,25 last param can go up to 500 for improved performance, must lower for poorer images
 		#edges_open = canny(image, 2) #originally 2,1,25
-		selem = disk(3)#originally 5
+		###selem = disk(3)#originally 5
 		#edges = closing(edges_open, selem)
 		edges = closing(image, selem)
 		fill_tubes = ndi.binary_fill_holes(edges)
-		io.imsave(str(i)+"_fill_tubes.png", img_as_uint(fill_tubes), cmap=cm.gray)
-		cy3_endpoint_mask, skeleton = make_endpoints_mask(fill_tubes)
+		io.imsave("image_sequence/"+str(i)+"_fill_tubes.png", img_as_uint(fill_tubes), cmap=cm.gray)
+		###cy3_endpoint_mask, skeleton = make_endpoints_mask(fill_tubes)
 		#io.imsave(str(i)+"_skeleton.png", img_as_uint(img_as_bool(skeleton)), cmap=cm.gray)
 		#print fill_tubes
 		#print skeleton
 		#print cy3_endpoint_mask
-		
-		
-		#io.imsave(str(i)+"_skeleton.png", skeleton, cmap=cm.gray)
-		#label image 
-		'''label_image = label(fill_tubes)
-		print "detecting nanotube angles...."
-		print len(regionprops(label_image))
+		label_image = label(fill_tubes)
+		print "number of detected nanotubes: ", len(regionprops(label_image))
+		tube_lengths = []
 		for region in regionprops(label_image):
 			if region.area/tube_width >= length_cutoff and region.eccentricity >= eccentricity_cutoff:
 				region_coords = region.coords.tolist()
-				region_endpoints = endpoints(region_coords, cy3_endpoint_mask)
-				if region_endpoints == None:
-					continue
-				print region_endpoints
-				#print region_endpoints[0][0]
-				#print region_endpoints[0][1]
-				#print region_endpoints[1][0]
-				#print region_endpoints[1][1]
-				#cropped_skeleton = skeleton[int(region_endpoints[0][0]):int(region_endpoints[1][0]), int(region_endpoints[1][1]):int(region_endpoints[0][1])]
-				#print "cropped skeleton"
-				#print cropped_skeleton
-				#contour = find_contours(cropped_skeleton, level = 1.0)
-				#print contour 
-				generate_ordered_coords_from_skeleton(skeleton, region_endpoints[0], region_endpoints[1])
-				endpoint_to_endpoint_vector  = np.subtract(region_endpoints[0], region_endpoints[1])
-				#x_axis_vector = np.array([0, 1])
-				x_axis_vector = np.array([1,0])
-				angle_with_x_axis = angle(endpoint_to_endpoint_vector, x_axis_vector)
-				angle_with_x_axis *= 180.0/math.pi
-				print 'angle with x axis is: ', angle_with_x_axis
-				tube_angles.append(angle_with_x_axis)
-					
-		i+=1
+				tube_lengths.append(region.area/tube_width)
+		print tube_lengths
+		if len(tube_lengths) == 0:
+			average_tube_lengths.append(0.0)
+		else:
+			avg_tube_length = float(sum(tube_lengths))/float(len(tube_lengths))
+			average_tube_lengths.append(avg_tube_length)
+	print average_tube_lengths
+	print time_points
+	print "printing angles"
+	f1=open('avg_lengths.dat','w')
+	for length in average_tube_lengths:
+		print >>f1, length
+	f1.close()
 
+	print "printing times"
+	f1=open('times.dat','w')
+	for time in time_points:
+		print >>f1, time
+	f1.close()
 
-		print "printing angles"
-		f1=open('angles.dat','a')
-		for angle_ in tube_angles:
-			print >>f1, angle_
-		f1.close()'''
+	#return tube_lengths
+	#io.imsave(str(i)+"_skeleton.png", skeleton, cmap=cm.gray)
+	#label image 
+	'''label_image = label(fill_tubes)
+	print "detecting nanotube angles...."
+	print len(regionprops(label_image))
+	for region in regionprops(label_image):
+		if region.area/tube_width >= length_cutoff and region.eccentricity >= eccentricity_cutoff:
+			region_coords = region.coords.tolist()
+			region_endpoints = endpoints(region_coords, cy3_endpoint_mask)
+			if region_endpoints == None:
+				continue
+			print region_endpoints
+			#print region_endpoints[0][0]
+			#print region_endpoints[0][1]
+			#print region_endpoints[1][0]
+			#print region_endpoints[1][1]
+			#cropped_skeleton = skeleton[int(region_endpoints[0][0]):int(region_endpoints[1][0]), int(region_endpoints[1][1]):int(region_endpoints[0][1])]
+			#print "cropped skeleton"
+			#print cropped_skeleton
+			#contour = find_contours(cropped_skeleton, level = 1.0)
+			#print contour 
+			generate_ordered_coords_from_skeleton(skeleton, region_endpoints[0], region_endpoints[1])
+			endpoint_to_endpoint_vector  = np.subtract(region_endpoints[0], region_endpoints[1])
+			#x_axis_vector = np.array([0, 1])
+			x_axis_vector = np.array([1,0])
+			angle_with_x_axis = angle(endpoint_to_endpoint_vector, x_axis_vector)
+			angle_with_x_axis *= 180.0/math.pi
+			print 'angle with x axis is: ', angle_with_x_axis
+			tube_angles.append(angle_with_x_axis)
+				
+	i+=1
+	print "printing angles"
+	f1=open('angles.dat','a')
+	for angle_ in tube_angles:
+		print >>f1, angle_
+	f1.close()'''
 
-process_tiff_stacks('Casein_anchor D2x_GFP monomer 5uM_position 2.tif')
+process_tiff_stacks('sisi_cropped.tif')
 
